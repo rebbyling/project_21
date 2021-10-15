@@ -23,12 +23,21 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class Catalog {
 
+    private final Map<String, Integer> nameTableId;
+    private final Map<Integer, DbFile> idDbFile;
+    private final Map<Integer, String> idTableName;
+    private final Map<Integer, String> idPkey;
+
     /**
      * Constructor.
      * Creates a new, empty catalog.
      */
     public Catalog() {
-        // some code goes here
+        nameTableId = new HashMap<String, Integer>();
+        idDbFile = new HashMap<Integer, DbFile>();
+        idTableName = new HashMap<Integer, String>();
+        idPkey = new HashMap<Integer, String>();
+
     }
 
     /**
@@ -110,6 +119,7 @@ public class Catalog {
         // some code goes here
     }
     
+
     /**
      * Reads the schema from a file and creates the appropriate tables in the database.
      * @param catalogFile
