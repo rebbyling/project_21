@@ -23,20 +23,39 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class Catalog {
 
-    private final Map<String, Integer> nameTableId;
-    private final Map<Integer, DbFile> idDbFile;
-    private final Map<Integer, String> idTableName;
-    private final Map<Integer, String> idPkey;
+    private ConcurrentHashMap<Integer, Table> dbFilesMap;
+    private ConcurrentHashMap<String, Integer> dbNameMap;
+    public static class Table{
+        public DbFile file;
+        public String name;
+        public String pkeyField;
+
+        public Table(DbFile file, String name, String pkeyField){
+            this.file = file;
+            this.name = name;
+            this.pkeyField = pkeyField;
+        }
+
+        public DbFile getFile() {
+            return file;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public String getPkeyField(){
+            return this.pkeyField;
+        }
+
+    }
 
     /**
      * Constructor.
      * Creates a new, empty catalog.
      */
     public Catalog() {
-        nameTableId = new HashMap<String, Integer>();
-        idDbFile = new HashMap<Integer, DbFile>();
-        idTableName = new HashMap<Integer, String>();
-        idPkey = new HashMap<Integer, String>();
+
 
     }
 
