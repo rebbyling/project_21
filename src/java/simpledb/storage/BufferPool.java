@@ -1,5 +1,6 @@
 package simpledb.storage;
 
+import simpledb.common.Catalog;
 import simpledb.common.Database;
 import simpledb.common.Permissions;
 import simpledb.common.DbException;
@@ -32,7 +33,8 @@ public class BufferPool {
     other classes. BufferPool should use the numPages argument to the
     constructor instead. */
     public static final int DEFAULT_PAGES = 50;
-
+    private int numPages;
+    private ConcurrentHashMap<PageId, Page> currentPool;
     /**
      * Creates a BufferPool that caches up to numPages pages.
      *
@@ -40,6 +42,8 @@ public class BufferPool {
      */
     public BufferPool(int numPages) {
         // some code goes here
+        this.numPages = numPages;
+        this.currentPool = new ConcurrentHashMap<PageId, Page>();
     }
     
     public static int getPageSize() {
@@ -71,10 +75,19 @@ public class BufferPool {
      * @param pid the ID of the requested page
      * @param perm the requested permissions on the page
      */
-    public  Page getPage(TransactionId tid, PageId pid, Permissions perm)
+    public Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
         // some code goes here
-        return null;
+        if (this.currentPool.containsKey(pid)){
+            //if it's in the buffer pool    
+            return this.currentPool.get(pid);
+        } else {
+            int tableId = pid.getTableId();
+            Catalog catalog = Database.getCatalog();
+            Page page = catalog.getDatabaseFile(tableId).readPage(pid);
+            this.currentPool.put(pid, page);
+            return page;
+        }
     }
 
     /**
