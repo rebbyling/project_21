@@ -83,6 +83,10 @@ public class TupleDesc implements Serializable {
         this(typeAr, new String[typeAr.length]);
     }
 
+    public TupleDesc(TDItem[] tdItem) {
+        this.items = Arrays.copyOf(tdItem, tdItem.length);
+    }
+
     /**
      * @return the number of fields in this TupleDesc
      */
@@ -168,7 +172,7 @@ public class TupleDesc implements Serializable {
         // some code goes here
         Type[] mergedArray = new Type[td1.numFields() + td2.numFields()];
         String[] fieldArray = new String[td1.numFields() + td2.numFields()];
-        for (int i = 0; i < td1.numFields(); i++){
+        for (int i = 0; i < td1.numFields(); ++i){
             mergedArray[i] = td1.getFieldType(i);
             fieldArray[i] = td1.getFieldName(i);
         }
@@ -228,7 +232,7 @@ public class TupleDesc implements Serializable {
     public String toString() {
         String str = "";
 
-        for (int i = 0; i < numFields(); i++){
+        for (int i = 0; i < numFields(); ++i){
             str += getFieldType(i).toString() + "(" + getFieldName(i).toString() + "), ";
         }
         

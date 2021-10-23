@@ -52,13 +52,13 @@ public class HeapPage implements Page {
 
         // allocate and read the header slots of this page
         header = new byte[getHeaderSize()];
-        for (int i=0; i<header.length; i++)
+        for (int i=0; i<header.length; ++i)
             header[i] = dis.readByte();
         
         tuples = new Tuple[numSlots];
         try{
             // allocate and read the actual records of this page
-            for (int i=0; i<tuples.length; i++)
+            for (int i=0; i<tuples.length; ++i)
                 tuples[i] = readNextTuple(dis,i);
         }catch(NoSuchElementException e){
             e.printStackTrace();
@@ -127,7 +127,7 @@ public class HeapPage implements Page {
         // if associated bit is not set, read forward to the next tuple, and
         // return null.
         if (!isSlotUsed(slotId)) {
-            for (int i=0; i<td.getSize(); i++) {
+            for (int i=0; i<td.getSize(); ++i) {
                 try {
                     dis.readByte();
                 } catch (IOException e) {
@@ -181,11 +181,11 @@ public class HeapPage implements Page {
         }
 
         // create the tuples
-        for (int i=0; i<tuples.length; i++) {
+        for (int i=0; i<tuples.length; ++i) {
 
             // empty slot
             if (!isSlotUsed(i)) {
-                for (int j=0; j<td.getSize(); j++) {
+                for (int j=0; j<td.getSize(); ++j) {
                     try {
                         dos.writeByte(0);
                     } catch (IOException e) {
@@ -288,7 +288,7 @@ public class HeapPage implements Page {
     public int getNumEmptySlots() {
         // some code goes here
         int emptySlots = 0;
-        for (int i = 0; i < this.numSlots; i++){
+        for (int i = 0; i < this.numSlots; ++i){
             if (!isSlotUsed(i)){
                 emptySlots++;
             }
@@ -320,7 +320,7 @@ public class HeapPage implements Page {
         // some code goes here
     
         List<Tuple> tupleList = new ArrayList<Tuple>();
-        for (int i = 0; i < getNumTuples(); i++){
+        for (int i = 0; i < getNumTuples(); ++i){
             if (isSlotUsed(i)){
                 tupleList.add(this.tuples[i]);
             }

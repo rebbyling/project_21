@@ -89,7 +89,7 @@ public class Tuple implements Serializable {
         String str = "";
 
         str += getField(0).toString();
-        for (int i = 1; i < tupleDesc.numFields(); i++){
+        for (int i = 1; i < tupleDesc.numFields(); ++i){
             str += "\t";
             str += getField(i).toString();
         }
