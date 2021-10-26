@@ -1,12 +1,30 @@
 package simpledb.execution;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.NoSuchElementException;
+
+import simpledb.common.DbException;
 import simpledb.common.Type;
+import simpledb.storage.Field;
+import simpledb.storage.IntField;
 import simpledb.storage.Tuple;
+import simpledb.storage.TupleDesc;
+import simpledb.transaction.TransactionAbortedException;
+
 
 /**
  * Knows how to compute some aggregate over a set of IntFields.
  */
 public class IntegerAggregator implements Aggregator {
+    private final int gbfield;
+    private final Type gbfieldtype;
+    private int afield;
+    private Op what;
+
+    protected Map<Field, Integer> gbHash;
+    protected Map<Field, int[]> gbAvgHash;
+    private Field nonGbKey;
 
     private static final long serialVersionUID = 1L;
 
@@ -26,7 +44,14 @@ public class IntegerAggregator implements Aggregator {
      */
 
     public IntegerAggregator(int gbfield, Type gbfieldtype, int afield, Op what) {
-        // some code goes here
+        //some code goes here
+        this.gbfield = gbfield; //grouping of groupby field
+        this.gbfieldtype = gbfieldtype; //type of groupby field
+        this.afield = afield; //aggregate field number
+        this.what = what; //sql opperand function
+        this.gbHash = new HashMap<>(); //stores a hashmap of the field and its value
+        this.gbAvgHash = new HashMap<>();
+        this.nonGbKey = null;
     }
 
     /**
@@ -38,6 +63,72 @@ public class IntegerAggregator implements Aggregator {
      */
     public void mergeTupleIntoGroup(Tuple tup) {
         // some code goes here
+        //first must check for grouping 
+        Field curGbField;
+        IntField curAgField;
+        int curCountVal;
+        int curSumVal;
+        int curMaxVal;
+        int curMinVal;
+
+        if (gbfield ==Aggregator.NO_GROUPING) {
+            curGbField = null;
+        } else {
+            curGbField = tup.getField(gbfield);
+        }
+        //get the column
+        curAgField = (IntField) tup.getField(afield);
+        //get value from column
+        Integer curVal = curAgField.getValue();
+
+        switch (what) {
+            case MAX: //check if field exists in gbHash, if does not exist insert into the hash
+                if (!gbHash.containsKey(curGbField)) {
+                    gbHash.put(curGbField, curVal);
+                } else { 
+                    curMaxVal = gbHash.get(curGbField);
+                    //compare curVal and curMaxVal, insert larger value into gbHash
+                    gbHash.put(curGbField, Math.max(curMaxVal, curVal));
+                }
+                return;
+
+            case SUM:
+                if (!gbHash.containsKey(curGbField)) {
+                    gbHash.put(curGbField, curVal);
+                } else {
+                    curSumVal = gbHash.get(curGbField);
+                    gbHash.put(curGbField, curSumVal + curVal);
+                }
+            return;
+
+            case COUNT:
+                if (!gbHash.containsKey(curGbField)){
+                    gbHash.put(curGbField, 1);
+                } else {
+                    curCountVal = gbHash.get(curGbField);
+                    gbHash.put(curGbField, curCountVal +1);
+                }
+            return;
+
+            case MIN:
+                if (!gbHash.containsKey(curGbField)){
+                    gbHash.put(curGbField, curVal);
+                } else {
+                    curMinVal = gbHash.get(curGbField);
+                    gbHash.put(curGbField, Math.min(curMinVal, curVal));
+                }
+            return;
+
+            case AVG:
+                if (!gbAvgHash.containsKey(curGbField)){
+                    gbAvgHash.put(curGbField, new int[]{curVal, 1});
+                } else {
+                    curSumVal = gbAvgHash.get(curGbField)[0];
+                    curCountVal = gbAvgHash.get(curGbField)[1];
+                    gbAvgHash.put(curGbField, new int[]{curSumVal + curVal, curCountVal + 1});
+                }
+            return;
+        }
     }
 
     /**
@@ -50,8 +141,93 @@ public class IntegerAggregator implements Aggregator {
      */
     public OpIterator iterator() {
         // some code goes here
-        throw new
-        UnsupportedOperationException("please implement me for lab2");
+
+        return new OpIterator() {
+            private TupleDesc tupleDesc;
+            private Tuple[] aggregateVal;
+            private int current_index = 0;
+
+            @Override
+            public void open() throws DbException, TransactionAbortedException{
+                if (gbfield == Aggregator.NO_GROUPING) {
+                    // if no grouping
+                    aggregateVal = new Tuple[1];
+                    tupleDesc = new TupleDesc(new Type[]{Type.INT_TYPE});
+                    Tuple tuple = new Tuple(tupleDesc);
+                    if (what == Op.AVG) {
+                        // if AVG, access gbAvgHash
+                        tuple.setField(0, new IntField(gbAvgHash.get(nonGbKey)[0] / gbAvgHash.get(nonGbKey)[1]));
+                    } else {
+                        // if not AVG, access gbHash
+                        tuple.setField(0, new IntField(gbHash.get(nonGbKey)));
+                    }
+                    aggregateVal[0] = tuple;
+                } else {
+                    // if there's grouping
+                    if (what == Op.AVG) {
+                        aggregateVal = new Tuple[gbAvgHash.size()];
+                        tupleDesc = new TupleDesc(new Type[]{gbfieldtype, Type.INT_TYPE});
+                        int i = 0;
+                        for (Field gbField: gbHash.keySet()) {
+                            Tuple tuple = new Tuple(tupleDesc);
+                            tuple.setField(0, gbField);
+                            tuple.setField(1, new IntField(gbAvgHash.get(gbField)[0] / gbAvgHash.get(gbField)[1]));
+                            aggregateVal[i] = tuple;
+                            i++;
+                        }
+
+                    } else {
+                        aggregateVal = new Tuple[gbHash.size()];
+                        tupleDesc = new TupleDesc(new Type[]{gbfieldtype, Type.INT_TYPE});
+                        int i = 0;
+                        for (Field gbField: gbHash.keySet()) {
+                            Tuple tuple = new Tuple(tupleDesc);
+                            tuple.setField(0, gbField);
+                            tuple.setField(1, new IntField(gbHash.get(gbField)));
+                            aggregateVal[i] = tuple;
+                            i++;
+                        }
+                    }
+                }
+            }
+
+            @Override
+            public boolean hasNext() throws DbException, TransactionAbortedException{
+                if (current_index < aggregateVal.length) {
+                    return true;
+                }
+                return false;
+            }
+
+            @Override
+            public Tuple next() throws DbException, TransactionAbortedException, NoSuchElementException {
+                if (this.hasNext()) {
+                    Tuple nextTuple = aggregateVal[current_index++];
+                    return nextTuple;
+                } else {
+                    throw new NoSuchElementException();
+                }
+            }
+
+            @Override
+            public void rewind() throws DbException, TransactionAbortedException {
+                current_index = 0;
+            }
+
+            @Override
+            public void close(){
+                tupleDesc = null;
+                aggregateVal = null;
+                current_index = 0;
+            }
+
+            @Override
+            public TupleDesc getTupleDesc() {
+                return tupleDesc;
+            }
+            
+        };
+
     }
 
 }

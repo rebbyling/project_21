@@ -18,6 +18,22 @@ public class Tuple implements Serializable {
     private Field[] fields;
     private RecordId recordId;
 
+    public static Tuple merge(Tuple t1, Tuple t2) {
+        
+        Tuple tuple = new Tuple(TupleDesc.merge(t1.getTupleDesc(), t2.getTupleDesc()));
+
+        System.arraycopy(t1.fields, 0,
+                        tuple.fields,
+                        0, t1.getTupleDesc().numFields());
+
+        System.arraycopy(t2.fields, 0,
+                        tuple.fields,
+                        t1.getTupleDesc().numFields(), t2.getTupleDesc().numFields());
+        return tuple;
+    }
+
+
+
     /**
      * Create a new tuple with the specified schema (type).
      *
@@ -60,11 +76,11 @@ public class Tuple implements Serializable {
      *
      * @param i
      *            index of the field to change. It must be a valid index.
-     * @param f
+     * @param gbField
      *            new value for the field.
      */
-    public void setField(int i, Field f) {
-        fields[i] = f;
+    public void setField(int i, Field gbField) {
+        fields[i] = gbField;
     }
 
     /**
@@ -110,5 +126,10 @@ public class Tuple implements Serializable {
      * */
     public void resetTupleDesc(TupleDesc td){
         this.tupleDesc = td;
+    }
+
+
+
+    public void setField(int i, com.sun.jdi.Field gbField) {
     }
 }
