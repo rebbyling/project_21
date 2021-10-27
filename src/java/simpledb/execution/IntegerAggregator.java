@@ -81,7 +81,7 @@ public class IntegerAggregator implements Aggregator {
         //get value from column
         Integer curVal = curAgField.getValue();
 
-        switch (what) {
+        switch (this.what) {
             case MAX: //check if field exists in gbHash, if does not exist insert into the hash
                 if (!gbHash.containsKey(curGbField)) {
                     gbHash.put(curGbField, curVal);
@@ -168,7 +168,7 @@ public class IntegerAggregator implements Aggregator {
                         aggregateVal = new Tuple[gbAvgHash.size()];
                         tupleDesc = new TupleDesc(new Type[]{gbfieldtype, Type.INT_TYPE});
                         int i = 0;
-                        for (Field gbField: gbHash.keySet()) {
+                        for (Field gbField: gbAvgHash.keySet()) {
                             Tuple tuple = new Tuple(tupleDesc);
                             tuple.setField(0, gbField);
                             tuple.setField(1, new IntField(gbAvgHash.get(gbField)[0] / gbAvgHash.get(gbField)[1]));
@@ -202,8 +202,7 @@ public class IntegerAggregator implements Aggregator {
             @Override
             public Tuple next() throws DbException, TransactionAbortedException, NoSuchElementException {
                 if (this.hasNext()) {
-                    Tuple nextTuple = aggregateVal[current_index++];
-                    return nextTuple;
+                    return aggregateVal[current_index++];
                 } else {
                     throw new NoSuchElementException();
                 }
