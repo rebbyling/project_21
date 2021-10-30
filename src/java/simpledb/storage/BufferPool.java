@@ -178,9 +178,9 @@ public class BufferPool {
         // not necessary for lab1
 
         int tableId = t.getRecordId().getPageId().getTableId();
-        HeapFile heapFile = (HeapFile) Database.getCatalog().getDatabaseFile(tableId);
+        DbFile file = Database.getCatalog().getDatabaseFile(tableId);
 
-        ArrayList<Page> pageArray = (ArrayList) heapFile.deleteTuple(tid, t);
+        ArrayList<Page> pageArray = (ArrayList) file.deleteTuple(tid, t);
         
         for (Page pg: pageArray) {
             pg.markDirty(true, tid);

@@ -83,18 +83,19 @@ public class HeapFile implements DbFile {
     public Page readPage(PageId pid) throws IllegalArgumentException {
         // some code goes here
         try {
-            RandomAccessFile randomAccessFile = new RandomAccessFile(this.f, "r");
-
-            int pgSize = BufferPool.getPageSize();
-            byte buffer[] = new byte[pgSize];
-
-            int offset = pid.getPageNumber()*BufferPool.getPageSize();
-            if (offset<randomAccessFile.length()) {
-                randomAccessFile.seek(offset);
-                randomAccessFile.read(buffer);
+            //create an empty page
+            if (pid.getPageNumber() == numPages()) {
+                Page page = new HeapPage((HeapPageId) pid, HeapPage.createEmptyPageData());
+                writePage(page);
+                return page;
+            } else {
+                RandomAccessFile randomAccessFile = new RandomAccessFile(this.f, "r");
+                randomAccessFile.seek(BufferPool.getPageSize() * pid.getPageNumber());
+                byte[] data = new byte[BufferPool.getPageSize()];
+                randomAccessFile.read(data);
                 randomAccessFile.close();
+                return new HeapPage((HeapPageId) pid, data);
             }
-            return new HeapPage((HeapPageId) pid, buffer);
         }catch (IllegalArgumentException | IOException e) {
             throw new IllegalArgumentException(e);
         }
@@ -105,6 +106,11 @@ public class HeapFile implements DbFile {
     public void writePage(Page page) throws IOException {
         // some code goes here
         // not necessary for lab1
+        int offset = page.getId().getPageNumber() * BufferPool.getPageSize();
+        RandomAccessFile raf = new RandomAccessFile(this.f, "rw");
+        raf.seek(offset);
+        raf.write(page.getPageData());
+        raf.close();
     }
 
     /**
@@ -130,13 +136,13 @@ public class HeapFile implements DbFile {
                 pageArr.add(page);
                 break;
             }
-            
+
         }
         //if there are no existing pages, create a new page and add in the tuple
         if (pageArr.isEmpty()) {
             HeapPage newPg = new HeapPage(new HeapPageId(getId(), numPages()), new byte[BufferPool.getPageSize()]);
             newPg.insertTuple(t);
-            //this.writePage(newPg);
+            this.writePage(newPg);
             pageArr.add(newPg);
         }
         return pageArr;
@@ -175,8 +181,8 @@ public class HeapFile implements DbFile {
     private class HeapFileIterator implements DbFileIterator  {
         
         private TransactionId tid;
-        private HeapPageId pid;
-        private HeapPage heapPage;
+        // private HeapPageId pid;
+        // private HeapPage heapPage;
         private int pageNo = 0;
         private Iterator<Tuple> iter;
         
@@ -189,25 +195,26 @@ public class HeapFile implements DbFile {
         public void open() throws DbException, TransactionAbortedException {
             // TODO Auto-generated method stub
             pageNo = 0;
-            this.pid = new HeapPageId(getId(), pageNo);
-            this.heapPage = (HeapPage) Database.getBufferPool().getPage(tid, pid,
-                                                                        Permissions.READ_ONLY);
-            this.iter = heapPage.iterator();
+            // this.pid = new HeapPageId(getId(), pageNo);
+            // this.heapPage = (HeapPage) Database.getBufferPool().getPage(tid, pid,
+            //                                                             Permissions.READ_ONLY);
+            // this.iter = heapPage.iterator();
+            this.iter = openPage(pageNo);
         }
 
         @Override
         public boolean hasNext() throws DbException, TransactionAbortedException {
             // TODO Auto-generated method stub
-            if (iter == null) {
+            if (this.iter == null) {
                 return false;
             }
 
-            while (!iter.hasNext()) {
+            while (!this.iter.hasNext()) {
                 ++pageNo;
                 if (pageNo >= numPages()) {
                     return false;
                 }
-                iter = openPage(pageNo);
+                this.iter = openPage(pageNo);
             }
             return true;
         }
@@ -222,7 +229,7 @@ public class HeapFile implements DbFile {
         public Tuple next() throws DbException, TransactionAbortedException, NoSuchElementException {
             // TODO Auto-generated method stub
             if (hasNext()){
-                return iter.next();
+                return this.iter.next();
             } else {
                 throw new NoSuchElementException();
             }
@@ -232,7 +239,7 @@ public class HeapFile implements DbFile {
         public void rewind() throws DbException, TransactionAbortedException {
             // TODO Auto-generated method stub
             pageNo = 0;
-            openPage(pageNo);
+            this.iter = openPage(pageNo);
             
         }
 
@@ -241,8 +248,8 @@ public class HeapFile implements DbFile {
             // TODO Auto-generated method stub
             this.pageNo = 0;
             this.tid = null;
-            this.pid = null;
-            this.heapPage = null;
+            // this.pid = null;
+            // this.heapPage = null;
             this.iter = null;
         }
 
