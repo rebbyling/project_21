@@ -23,6 +23,7 @@ public class Insert extends Operator {
     private OpIterator child;
     private final int tableId;
     private boolean isCalled;
+    private int num;
 
     /**
      * Constructor.
@@ -43,6 +44,8 @@ public class Insert extends Operator {
         this.t = t;
         this.child = child;
         this.tableId = tableId;
+        this.isCalled = false;
+        this.num = 0;
     }
 
     public TupleDesc getTupleDesc() {
@@ -60,12 +63,15 @@ public class Insert extends Operator {
         // some code goes here
         super.close();
         child.close();
+        this.isCalled = false;
+        this.num = 0;
     }
 
     public void rewind() throws DbException, TransactionAbortedException {
         // some code goes here
         this.child.rewind();
-
+        this.isCalled = false;
+        this.num = 0;
     }
 
     /**
@@ -86,18 +92,18 @@ public class Insert extends Operator {
         if (this.isCalled){
             return null;
         }
-        int count = 0;
         this.isCalled = true;
         while (this.child.hasNext()){
             Tuple tupleToInsert = this.child.next();
             try{
                 Database.getBufferPool().insertTuple(this.t, this.tableId, tupleToInsert);
+                this.num += 1;
             } catch (IOException e){
                 throw new DbException("Insert failed");
             }
         }
         Tuple countTuple = new Tuple(getTupleDesc());
-        countTuple.setField(0, new IntField(count));
+        countTuple.setField(0, new IntField(this.num));
         return countTuple;
     }
 

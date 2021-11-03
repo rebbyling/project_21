@@ -78,6 +78,10 @@ public class BufferPool {
     public Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
         // some code goes here
+        if (this.currentPool.size() >= numPages) {
+            this.evictPage();
+        }
+
         if (this.currentPool.containsKey(pid)){
             //if it's in the buffer pool    
             return this.currentPool.get(pid);
@@ -156,6 +160,11 @@ public class BufferPool {
         ArrayList<Page> pageArr = (ArrayList) file.insertTuple(tid, t);
         for (Page pg : pageArr) {
             pg.markDirty(true, tid);
+            if (this.currentPool.size() > this.numPages) {
+                this.evictPage();
+            }
+            //assign id to the page
+            this.currentPool.put(pg.getId(), pg);
         }
     }
 
@@ -184,6 +193,8 @@ public class BufferPool {
         
         for (Page pg: pageArray) {
             pg.markDirty(true, tid);
+            // assign id to the page
+            this.currentPool.put(pg.getId(), pg);
         }
 
 
@@ -197,7 +208,9 @@ public class BufferPool {
     public synchronized void flushAllPages() throws IOException {
         // some code goes here
         // not necessary for lab1
-
+        for (PageId pid : this.currentPool.keySet()) {
+            this.flushPage(pid);
+        }
     }
 
     /** Remove the specific page id from the buffer pool.
@@ -211,6 +224,7 @@ public class BufferPool {
     public synchronized void discardPage(PageId pid) {
         // some code goes here
         // not necessary for lab1
+        this.currentPool.remove(pid);
     }
 
     /**
@@ -220,6 +234,18 @@ public class BufferPool {
     private synchronized  void flushPage(PageId pid) throws IOException {
         // some code goes here
         // not necessary for lab1
+        Page pg = currentPool.get(pid);
+        
+        if (currentPool.containsKey(pid)) {
+            TransactionId dirty = pg.isDirty();
+            if (dirty != null) {
+                Database.getLogFile().logWrite(dirty, pg.getBeforeImage(), pg);
+                Database.getLogFile().force();
+                HeapFile hpFile = (HeapFile) Database.getCatalog().getDatabaseFile(pid.getTableId());
+                hpFile.writePage(pg);
+                pg.markDirty(false, null);
+            }
+        }
     }
 
     /** Write all pages of the specified transaction to disk.
@@ -236,6 +262,15 @@ public class BufferPool {
     private synchronized  void evictPage() throws DbException {
         // some code goes here
         // not necessary for lab1
+        ArrayList<PageId> arrayList = new ArrayList<>(currentPool.keySet());
+        int randomPage = (int) (Math.random() * currentPool.size());
+        PageId pid = arrayList.get(randomPage);
+
+        try {
+            flushPage(pid);
+        } catch (IOException ignored) {
+        }
+        currentPool.remove(pid);
     }
 
 }
