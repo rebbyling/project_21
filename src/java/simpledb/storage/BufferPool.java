@@ -10,6 +10,7 @@ import simpledb.transaction.TransactionId;
 
 import java.io.*;
 import java.util.ArrayList;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -35,6 +36,8 @@ public class BufferPool {
     public static final int DEFAULT_PAGES = 50;
     private int numPages;
     private ConcurrentHashMap<PageId, Page> currentPool;
+    private LockManager lockManager;
+    private final Object LOCK;
     /**
      * Creates a BufferPool that caches up to numPages pages.
      *
@@ -44,6 +47,7 @@ public class BufferPool {
         // some code goes here
         this.numPages = numPages;
         this.currentPool = new ConcurrentHashMap<PageId, Page>();
+        LOCK = new Object();
     }
     
     public static int getPageSize() {
@@ -78,20 +82,27 @@ public class BufferPool {
     public Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
         // some code goes here
-        if (this.currentPool.size() >= numPages) {
-            this.evictPage();
+        while (!lockManager.acquire(tid , pid, perm)) {
+
         }
 
-        if (this.currentPool.containsKey(pid)){
-            //if it's in the buffer pool    
-            return this.currentPool.get(pid);
-        } else {
-            int tableId = pid.getTableId();
-            Catalog catalog = Database.getCatalog();
-            Page page = catalog.getDatabaseFile(tableId).readPage(pid);
-            this.currentPool.put(pid, page);
-            return page;
+        synchronized (LOCK) {
+            if (this.currentPool.size() >= numPages) {
+                this.evictPage();
+            }
+
+            if (this.currentPool.containsKey(pid)){
+                //if it's in the buffer pool    
+                return this.currentPool.get(pid);
+            } else {
+                int tableId = pid.getTableId();
+                Catalog catalog = Database.getCatalog();
+                Page page = catalog.getDatabaseFile(tableId).readPage(pid);
+                this.currentPool.put(pid, page);
+                return page;
+            }
         }
+        
     }
 
     /**
@@ -106,6 +117,7 @@ public class BufferPool {
     public  void unsafeReleasePage(TransactionId tid, PageId pid) {
         // some code goes here
         // not necessary for lab1|lab2
+        this.lockManager.releaseLock(tid, pid);
     }
 
     /**
@@ -116,6 +128,7 @@ public class BufferPool {
     public void transactionComplete(TransactionId tid) {
         // some code goes here
         // not necessary for lab1|lab2
+        this.lockManager.releaseTransaction(tid);
     }
 
     /** Return true if the specified transaction has a lock on the specified page */
@@ -131,10 +144,27 @@ public class BufferPool {
      *
      * @param tid the ID of the transaction requesting the unlock
      * @param commit a flag indicating whether we should commit or abort
+     * @throws IOException
      */
-    public void transactionComplete(TransactionId tid, boolean commit) {
+    public void transactionComplete(TransactionId tid, boolean commit) throws IOException {
         // some code goes here
         // not necessary for lab1|lab2
+        Set<PageId> pagesToRecover = this.lockManager.tidToPg.get(tid);
+        if (pagesToRecover == null){
+            return;
+        }
+        for (PageId pid: pagesToRecover){
+            if (this.currentPool.containsKey(pid)){
+                Page page = this.currentPool.get(pid);
+                Database.getLogFile().logWrite(tid, page.getBeforeImage(), page);
+                Database.getLogFile().force();
+                page.setBeforeImage();
+                if(!commit){
+                    this.currentPool.replace(pid, page.getBeforeImage());
+                }
+            }
+        }
+        this.lockManager.releaseAll(tid);
     }
 
     /**
@@ -253,6 +283,11 @@ public class BufferPool {
     public synchronized  void flushPages(TransactionId tid) throws IOException {
         // some code goes here
         // not necessary for lab1|lab2
+        for (Page p : this.currentPool.values()) {
+            if (tid.equals(p.isDirty())) {
+                flushPage(p.getId());
+            }
+        }
     }
 
     /**

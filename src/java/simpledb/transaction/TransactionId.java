@@ -40,4 +40,8 @@ public class TransactionId implements Serializable {
 		result = prime * result + (int) (myid ^ (myid >>> 32));
 		return result;
 	}
+
+    public boolean contains(TransactionId tid) {
+        return false;
+    }
 }
