@@ -37,7 +37,6 @@ public class BufferPool {
     private int numPages;
     private ConcurrentHashMap<PageId, Page> currentPool;
     private LockManager lockManager;
-    private final Object LOCK;
     /**
      * Creates a BufferPool that caches up to numPages pages.
      *
@@ -47,7 +46,7 @@ public class BufferPool {
         // some code goes here
         this.numPages = numPages;
         this.currentPool = new ConcurrentHashMap<PageId, Page>();
-        LOCK = new Object();
+        this.lockManager = new LockManager();
     }
     
     public static int getPageSize() {
@@ -82,27 +81,27 @@ public class BufferPool {
     public Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
         // some code goes here
-        while (!lockManager.acquire(tid , pid, perm)) {
-
-        }
-
-        synchronized (LOCK) {
-            if (this.currentPool.size() >= numPages) {
-                this.evictPage();
-            }
-
-            if (this.currentPool.containsKey(pid)){
-                //if it's in the buffer pool    
-                return this.currentPool.get(pid);
-            } else {
-                int tableId = pid.getTableId();
-                Catalog catalog = Database.getCatalog();
-                Page page = catalog.getDatabaseFile(tableId).readPage(pid);
-                this.currentPool.put(pid, page);
-                return page;
-            }
+        if (this.currentPool.size() >= numPages) {
+            this.evictPage();
         }
         
+        // acquiring lock
+        try {
+            this.lockManager.acquire(tid, pid, perm);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        if (this.currentPool.containsKey(pid)){
+            //if it's in the buffer pool
+            return this.currentPool.get(pid);
+        } else {
+            int tableId = pid.getTableId();
+            Catalog catalog = Database.getCatalog();
+            Page page = catalog.getDatabaseFile(tableId).readPage(pid);
+            this.currentPool.put(pid, page);
+            return page;
+        }
     }
 
     /**
@@ -128,14 +127,19 @@ public class BufferPool {
     public void transactionComplete(TransactionId tid) {
         // some code goes here
         // not necessary for lab1|lab2
-        this.lockManager.releaseTransaction(tid);
+        try {
+            transactionComplete(tid, true);
+        } catch (IOException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
     }
 
     /** Return true if the specified transaction has a lock on the specified page */
     public boolean holdsLock(TransactionId tid, PageId p) {
         // some code goes here
         // not necessary for lab1|lab2
-        return false;
+        return this.lockManager.lockStatus(tid, p);
     }
 
     /**
@@ -149,7 +153,7 @@ public class BufferPool {
     public void transactionComplete(TransactionId tid, boolean commit) throws IOException {
         // some code goes here
         // not necessary for lab1|lab2
-        Set<PageId> pagesToRecover = this.lockManager.tidToPg.get(tid);
+        Set<PageId> pagesToRecover = this.lockManager.transactions.get(tid);
         if (pagesToRecover == null){
             return;
         }
@@ -166,7 +170,6 @@ public class BufferPool {
         }
         this.lockManager.releaseAll(tid);
     }
-
     /**
      * Add a tuple to the specified table on behalf of transaction tid.  Will
      * acquire a write lock on the page the tuple is added to and any other 

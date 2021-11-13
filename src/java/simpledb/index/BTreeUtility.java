@@ -535,7 +535,12 @@ public class BTreeUtility {
 					error = e;
 				}
 
-                Database.getBufferPool().transactionComplete(tid, false);
+                try {
+					Database.getBufferPool().transactionComplete(tid, false);
+				} catch (IOException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
             }
 		}
 
@@ -618,7 +623,12 @@ public class BTreeUtility {
 					error = e;
 				}
 
-                Database.getBufferPool().transactionComplete(tid, false);
+                try {
+					Database.getBufferPool().transactionComplete(tid, false);
+				} catch (IOException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
             }
 		}
 
@@ -686,7 +696,12 @@ public class BTreeUtility {
 					error = e;
 				}
 
-                Database.getBufferPool().transactionComplete(tid, false);
+                try {
+					Database.getBufferPool().transactionComplete(tid, false);
+				} catch (IOException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
             }
 		}
 		
@@ -784,7 +799,7 @@ public class BTreeUtility {
 				try {
 					insertedTuples.put(tuple);
 					Database.getBufferPool().transactionComplete(tid, false);
-				} catch (InterruptedException e2) {
+				} catch (InterruptedException | IOException e2) {
 					e2.printStackTrace();
 				}
             }
