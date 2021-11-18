@@ -10,6 +10,7 @@ import simpledb.transaction.TransactionId;
 
 import java.io.*;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -84,7 +85,6 @@ public class BufferPool {
         if (this.currentPool.size() >= numPages) {
             this.evictPage();
         }
-        
         // acquiring lock
         try {
             this.lockManager.acquire(tid, pid, perm);
@@ -95,13 +95,13 @@ public class BufferPool {
         if (this.currentPool.containsKey(pid)){
             //if it's in the buffer pool
             return this.currentPool.get(pid);
-        } else {
-            int tableId = pid.getTableId();
-            Catalog catalog = Database.getCatalog();
-            Page page = catalog.getDatabaseFile(tableId).readPage(pid);
-            this.currentPool.put(pid, page);
-            return page;
-        }
+        } 
+        int tableId = pid.getTableId();
+        Catalog catalog = Database.getCatalog();
+        Page page = catalog.getDatabaseFile(tableId).readPage(pid);
+        this.currentPool.put(pid, page);
+        return page;
+
     }
 
     /**
@@ -153,18 +153,20 @@ public class BufferPool {
     public void transactionComplete(TransactionId tid, boolean commit) throws IOException {
         // some code goes here
         // not necessary for lab1|lab2
-        Set<PageId> pagesToRecover = this.lockManager.transactions.get(tid);
+
+        HashSet<PageId> pagesToRecover = this.lockManager.transactions.get(tid);
         if (pagesToRecover == null){
             return;
         }
         for (PageId pid: pagesToRecover){
             if (this.currentPool.containsKey(pid)){
                 Page page = this.currentPool.get(pid);
-                Database.getLogFile().logWrite(tid, page.getBeforeImage(), page);
-                Database.getLogFile().force();
-                page.setBeforeImage();
-                if(!commit){
-                    this.currentPool.replace(pid, page.getBeforeImage());
+
+                if(commit){
+                    flushPage(page.getId());
+                    page.setBeforeImage();
+                } else if (page.isDirty() != null) {
+                    discardPage(pid);
                 }
             }
         }
@@ -220,7 +222,7 @@ public class BufferPool {
         // not necessary for lab1
 
         int tableId = t.getRecordId().getPageId().getTableId();
-        DbFile file = Database.getCatalog().getDatabaseFile(tableId);
+        HeapFile file = (HeapFile) Database.getCatalog().getDatabaseFile(tableId);
 
         ArrayList<Page> pageArray = (ArrayList) file.deleteTuple(tid, t);
         

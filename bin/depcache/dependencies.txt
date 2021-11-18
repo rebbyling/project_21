@@ -685,6 +685,7 @@ java.util.HashMap
 simpledb.storage.Page
 simpledb.storage.BufferPool
 java.util.ArrayList
+java.util.HashSet
 simpledb.transaction.TransactionId
 simpledb.storage.DbFile
 simpledb.common.Database
@@ -697,7 +698,6 @@ java.util.Iterator
 simpledb.storage.Tuple
 java.util.Collection
 java.util.concurrent.ConcurrentHashMap
-java.util.Set
 java.io.IOException
 java.lang.Exception
 java.util.concurrent.ConcurrentHashMap$KeySetView

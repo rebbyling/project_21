@@ -2,7 +2,9 @@ package simpledb.storage;
 
 import java.util.*;
 
+import simpledb.transaction.Transaction;
 import simpledb.transaction.TransactionAbortedException;
+import simpledb.transaction.TransactionId;
 import simpledb.transaction.TransactionId;
 import simpledb.common.Permissions;
 import java.util.concurrent.ConcurrentHashMap;
@@ -92,10 +94,11 @@ public class LockManager {
                 iter.remove();
             }
         }
+        waitForGraph.remove(tid);
     }
 
     public synchronized Boolean lockStatus(PageId pid) {
-        if (!locks.containsKey(pid)) {
+        if (locks.containsKey(pid)) {
             LocksOnPage currentLocks = locks.get(pid);
             if (currentLocks.getExclusiveLock() != null) {
                 return true;
@@ -117,7 +120,7 @@ public class LockManager {
         return false;
     }
 
-    public synchronized Boolean upgrade(TransactionId tid, PageId pid) {
+    public synchronized Boolean upgradeLock(TransactionId tid, PageId pid) {
         LocksOnPage currentLocks = locks.get(pid);
         if (currentLocks.getSharedLocks().size() == 1) {
             currentLocks.removeSharedLocks(tid);
@@ -132,11 +135,16 @@ public class LockManager {
         this.transactions.putIfAbsent(tid, new HashSet<>());
         LocksOnPage currentLocks = this.locks.get(pid);
         
+        // while locked
         while(this.lockStatus(pid)) {
+            // if no exclusive lock
             if (!currentLocks.hasExclusiveLock()) {
+                // if perm is read/write
                 if (perm.equals(Permissions.READ_WRITE)) {
+                    // if it already has sharedlock (read only)
                     if (currentLocks.getSharedLocks().contains(tid)) {
-                        if (upgrade(tid, pid)) {
+                        // upgrade to exclusivelock
+                        if (upgradeLock(tid, pid)) {
                             return;
                         }
                     }
@@ -146,30 +154,33 @@ public class LockManager {
                             this.waitForGraph.get(tid).add(waitingTid);
                         }
                     }
+                    // check for deadlocks
                     if (detectDeadlock()) {
                         for (TransactionId waitingTid : currentLocks.getSharedLocks()) {
                             if (waitingTid != tid){
                                 this.waitForGraph.get(tid).remove(waitingTid);
                             }
                         }
+                        notifyAll();
+                        throw new TransactionAbortedException();
                     }
-                    notifyAll();
-                    throw new TransactionAbortedException();
-                }
-            } else if (perm.equals(Permissions.READ_ONLY)){
-                if (lockStatus(tid, pid)) {
+                } else if (perm.equals(Permissions.READ_ONLY)){
+                    if (lockStatus(tid, pid)) {
+                        return;
+                    }
+                    currentLocks.addSharedLocks(tid);
+                    this.transactions.putIfAbsent(tid, new HashSet<>());
+                    transactions.get(tid).add(pid);
                     return;
                 }
-                currentLocks.addSharedLocks(tid);
-                this.transactions.putIfAbsent(tid, new HashSet<>());
-                transactions.get(tid).add(pid);
-                return;
+            // if there is exclusivelock and read/write
             } else {
                 if (currentLocks.getExclusiveLock()==tid) {
                     return;
                 } else {
                     this.waitForGraph.putIfAbsent(tid, new HashSet<>());
                     this.waitForGraph.get(tid).add(currentLocks.getExclusiveLock());
+                    // check for deadlocks
                     if (detectDeadlock()) {
                         this.waitForGraph.get(tid).remove(currentLocks.getExclusiveLock());
                         notifyAll();
@@ -183,6 +194,7 @@ public class LockManager {
                 System.out.println("error");
             }
         }
+        // if not lock, just add locks
         if  (perm.equals(Permissions.READ_WRITE)) {
             currentLocks.addExclusiveLock(tid);
         }
@@ -220,10 +232,15 @@ public class LockManager {
             TransactionId tid1 = queue.poll();
             count += 1;
 
+            if (!this.waitForGraph.containsKey(tid1)){
+                continue;
+            }
+
             for (TransactionId tid2: this.waitForGraph.get(tid1)) {
                 if (dlMap.get(tid2) != 0) {
                     dlMap.replace(tid2, dlMap.get(tid2) - 1);
-                } else {
+                } 
+                if (dlMap.get(tid2) == 0) {
                     queue.offer(tid2);
                 }
             }

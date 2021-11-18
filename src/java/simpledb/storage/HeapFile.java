@@ -84,18 +84,18 @@ public class HeapFile implements DbFile {
         // some code goes here
         try {
             //create an empty page
-            if (pid.getPageNumber() == numPages()) {
-                Page page = new HeapPage((HeapPageId) pid, HeapPage.createEmptyPageData());
-                writePage(page);
-                return page;
-            } else {
-                RandomAccessFile randomAccessFile = new RandomAccessFile(this.f, "r");
-                randomAccessFile.seek(BufferPool.getPageSize() * pid.getPageNumber());
-                byte[] data = new byte[BufferPool.getPageSize()];
-                randomAccessFile.read(data);
-                randomAccessFile.close();
-                return new HeapPage((HeapPageId) pid, data);
-            }
+            // if (pid.getPageNumber() == numPages()) {
+            //     Page page = new HeapPage((HeapPageId) pid, HeapPage.createEmptyPageData());
+            //     writePage(page);
+            //     return page;
+            // } else {
+            RandomAccessFile randomAccessFile = new RandomAccessFile(this.f, "r");
+            randomAccessFile.seek(BufferPool.getPageSize() * pid.getPageNumber());
+            byte[] data = new byte[BufferPool.getPageSize()];
+            randomAccessFile.read(data);
+            randomAccessFile.close();
+            return new HeapPage((HeapPageId) pid, data);
+            // }
         }catch (IllegalArgumentException | IOException e) {
             throw new IllegalArgumentException(e);
         }
