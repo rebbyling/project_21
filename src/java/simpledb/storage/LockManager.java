@@ -13,9 +13,9 @@ import javax.xml.crypto.dsig.keyinfo.RetrievalMethod;
 
 public class LockManager {
 
-    public HashMap<PageId, LocksOnPage> locks;
-    public HashMap<TransactionId, HashSet<PageId>> transactions;
-    public HashMap<TransactionId, HashSet<TransactionId>> waitForGraph;
+    public ConcurrentHashMap<PageId, LocksOnPage> locks;
+    public ConcurrentHashMap<TransactionId, HashSet<PageId>> transactions;
+    public ConcurrentHashMap<TransactionId, HashSet<TransactionId>> waitForGraph;
     
     class LocksOnPage{
         private TransactionId exclusiveLock;
@@ -64,9 +64,9 @@ public class LockManager {
     }
 
     public LockManager() {
-        locks = new HashMap<>();
-        transactions = new HashMap<>();
-        waitForGraph = new HashMap<>();
+        locks = new ConcurrentHashMap<>();
+        transactions = new ConcurrentHashMap<>();
+        waitForGraph = new ConcurrentHashMap<>();
     }
 
     public synchronized Boolean releaseLock(TransactionId tid, PageId pid) {
@@ -155,7 +155,7 @@ public class LockManager {
                         }
                     }
                     // check for deadlocks
-                    if (detectDeadlock()) {
+                    if (Boolean.TRUE.equals(detectDeadlock())) {
                         for (TransactionId waitingTid : currentLocks.getSharedLocks()) {
                             if (waitingTid != tid){
                                 this.waitForGraph.get(tid).remove(waitingTid);
@@ -206,7 +206,7 @@ public class LockManager {
     }
 
     public synchronized Boolean detectDeadlock() throws TransactionAbortedException{
-        HashMap<TransactionId, Integer> dlMap = new HashMap<>();
+        ConcurrentHashMap<TransactionId, Integer> dlMap = new ConcurrentHashMap<>();
         Deque<TransactionId> queue = new LinkedList<>();
 
         for (TransactionId tid: this.transactions.keySet()){
