@@ -25,7 +25,6 @@ public class HeapPage implements Page {
     final Tuple[] tuples;
     final int numSlots;
     private TransactionId dirtytid;
-    private boolean isDirty;
 
     byte[] oldData;
     private final Byte oldDataLock= (byte) 0;
@@ -310,7 +309,6 @@ public class HeapPage implements Page {
         } else {
             this.dirtytid = null;
         }
-        this.isDirty = dirty;
 
     }
 
@@ -320,7 +318,7 @@ public class HeapPage implements Page {
     public TransactionId isDirty() {
         // some code goes here
 	// Not necessary for lab1
-        return this.dirtytid;
+        return this.dirtytid;      
     }
 
     /**

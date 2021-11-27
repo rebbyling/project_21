@@ -12,7 +12,6 @@ import java.io.*;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -165,11 +164,9 @@ public class BufferPool {
 
                 if(commit){
                     flushPage(page.getId());
-                    Database.getLogFile().logWrite(tid, page.getBeforeImage(), page);
-                    Database.getLogFile().force();
                     page.setBeforeImage();
-                } else if (tid.equals(this.currentPool.get(pid).isDirty())) {
-                    this.currentPool.replace(pid, page.getBeforeImage());
+                } else if (page.isDirty() != null) {
+                    discardPage(pid);
                 }
             }
         }
@@ -279,7 +276,6 @@ public class BufferPool {
             if (dirty != null) {
                 Database.getLogFile().logWrite(dirty, pg.getBeforeImage(), pg);
                 Database.getLogFile().force();
-
                 HeapFile hpFile = (HeapFile) Database.getCatalog().getDatabaseFile(pid.getTableId());
                 hpFile.writePage(pg);
                 pg.markDirty(false, null);
@@ -306,24 +302,15 @@ public class BufferPool {
     private synchronized  void evictPage() throws DbException {
         // some code goes here
         // not necessary for lab1
-        boolean evicted = false;
         ArrayList<PageId> arrayList = new ArrayList<>(currentPool.keySet());
         int randomPage = (int) (Math.random() * currentPool.size());
         PageId pid = arrayList.get(randomPage);
-        Page pg = this.currentPool.get(pid);
 
-        while (!evicted) {
-            if (pg.isDirty() != null){
-                arrayList = new ArrayList<>(currentPool.keySet());
-                randomPage = (int) (Math.random() * currentPool.size());
-                pid = arrayList.get(randomPage);
-                pg = this.currentPool.get(pid);
-            } else {
-                evicted = true;
-                discardPage(pid);
-                return;
-            }
+        try {
+            flushPage(pid);
+        } catch (IOException ignored) {
         }
+        currentPool.remove(pid);
     }
 
 }
