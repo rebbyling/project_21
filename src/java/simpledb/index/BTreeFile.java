@@ -897,7 +897,29 @@ public class BTreeFile implements DbFile {
 		// the sibling pointers, and make the right page available for reuse.
 		// Delete the entry in the parent corresponding to the two pages that are merging -
 		// deleteParentEntry() will be useful here
+		Tuple[] tpDelete = new Tuple[rightPage.getNumTuples()];
+		int count = tpDelete.length -1;
+		Iterator<Tuple> iter = rightPage.iterator();
+		while(count>=0 && iter.hasNext()) {
+			tpDelete[count--] = iter.next();
+		}
+		for (Tuple t :tpDelete) {
+			rightPage.deleteTuple(t);
+			leftPage.insertTuple(t);
+		}
+		
+		BTreePageId rightId = rightPage.getRightSiblingId();
+		leftPage.setRightSiblingId(rightId);
+		if (rightId != null) {
+			BTreeLeafPage rightSib = (BTreeLeafPage) getPage(tid, dirtypages, rightId, Permissions.READ_WRITE);
+			rightSib.setLeftSiblingId(leftPage.getId());
+			dirtypages.put(rightId, rightSib);
+		}
+		dirtypages.put(leftPage.pid, leftPage);
+		setEmptyPage(tid, dirtypages, rightPage.getId().getPageNumber());
+		deleteParentEntry(tid, dirtypages, leftPage, parent, parentEntry);
 	}
+	
 
 	/**
 	 * Merge two internal pages by moving all entries from the right page to the left page 
@@ -930,6 +952,25 @@ public class BTreeFile implements DbFile {
 		// and make the right page available for reuse
 		// Delete the entry in the parent corresponding to the two pages that are merging -
 		// deleteParentEntry() will be useful here
+		deleteParentEntry(tid, dirtypages, leftPage, parent, parentEntry);
+
+		parentEntry.setRightChild(rightPage.iterator().next().getLeftChild());
+		parentEntry.setLeftChild(leftPage.reverseIterator().next().getRightChild());
+
+		leftPage.insertEntry(parentEntry);
+
+		while (rightPage.iterator().hasNext()){
+			BTreeEntry entry = rightPage.iterator().next();
+			
+			rightPage.deleteKeyAndLeftChild(entry);
+			
+			updateParentPointer(tid, dirtypages, leftPage.getId(), entry.getRightChild());
+			updateParentPointer(tid, dirtypages, leftPage.getId(), entry.getLeftChild());
+
+			leftPage.insertEntry(entry);
+		}
+		dirtypages.put(leftPage.getId(), leftPage);
+		setEmptyPage(tid, dirtypages, rightPage.getId().getPageNumber());
 	}
 	
 	/**

@@ -239,7 +239,7 @@ public class LockManager {
             for (TransactionId tid2: this.waitForGraph.get(tid1)) {
                 if (dlMap.get(tid2) != 0) {
                     dlMap.replace(tid2, dlMap.get(tid2) - 1);
-                } 
+                }
                 if (dlMap.get(tid2) == 0) {
                     queue.offer(tid2);
                 }
