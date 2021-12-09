@@ -12,6 +12,7 @@ import java.io.*;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -164,9 +165,11 @@ public class BufferPool {
 
                 if(commit){
                     flushPage(page.getId());
+                    Database.getLogFile().logWrite(tid, page.getBeforeImage(), page);
+                    Database.getLogFile().force();
                     page.setBeforeImage();
-                } else if (page.isDirty() != null) {
-                    discardPage(pid);
+                } else if (tid.equals(this.currentPool.get(pid).isDirty())) {
+                    this.currentPool.replace(pid, page.getBeforeImage());
                 }
             }
         }
@@ -191,7 +194,7 @@ public class BufferPool {
         throws DbException, IOException, TransactionAbortedException {
         // some code goes here
         // not necessary for lab1
-        HeapFile file = (HeapFile) Database.getCatalog().getDatabaseFile(tableId);
+        DbFile file = Database.getCatalog().getDatabaseFile(tableId);
         ArrayList<Page> pageArr = (ArrayList) file.insertTuple(tid, t);
         for (Page pg : pageArr) {
             pg.markDirty(true, tid);
@@ -222,7 +225,7 @@ public class BufferPool {
         // not necessary for lab1
 
         int tableId = t.getRecordId().getPageId().getTableId();
-        HeapFile file = (HeapFile) Database.getCatalog().getDatabaseFile(tableId);
+        DbFile file = Database.getCatalog().getDatabaseFile(tableId);
 
         ArrayList<Page> pageArray = (ArrayList) file.deleteTuple(tid, t);
         
@@ -276,8 +279,9 @@ public class BufferPool {
             if (dirty != null) {
                 Database.getLogFile().logWrite(dirty, pg.getBeforeImage(), pg);
                 Database.getLogFile().force();
-                HeapFile hpFile = (HeapFile) Database.getCatalog().getDatabaseFile(pid.getTableId());
-                hpFile.writePage(pg);
+
+                DbFile File = Database.getCatalog().getDatabaseFile(pid.getTableId());
+                File.writePage(pg);
                 pg.markDirty(false, null);
             }
         }
@@ -302,15 +306,24 @@ public class BufferPool {
     private synchronized  void evictPage() throws DbException {
         // some code goes here
         // not necessary for lab1
+        boolean evicted = false;
         ArrayList<PageId> arrayList = new ArrayList<>(currentPool.keySet());
         int randomPage = (int) (Math.random() * currentPool.size());
         PageId pid = arrayList.get(randomPage);
+        Page pg = this.currentPool.get(pid);
 
-        try {
-            flushPage(pid);
-        } catch (IOException ignored) {
+        while (!evicted) {
+            if (pg.isDirty() != null){
+                arrayList = new ArrayList<>(currentPool.keySet());
+                randomPage = (int) (Math.random() * currentPool.size());
+                pid = arrayList.get(randomPage);
+                pg = this.currentPool.get(pid);
+            } else {
+                evicted = true;
+                discardPage(pid);
+                return;
+            }
         }
-        currentPool.remove(pid);
     }
 
 }
